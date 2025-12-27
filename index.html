@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Typing Fighter - Kana to Romaji (Hepburn/Kunrei + Extended + 60s Mode)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#e8ecff; --sub:#a9b2d6;
+      --good:#27d4a7; --bad:#ff5a7a; --warn:#ffd166;
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-size:17px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      background: radial-gradient(1200px 800px at 50% 0%, #142050 0%, var(--bg) 55%, #060812 100%);
+      color:var(--text);
+      display:flex; align-items:center; justify-content:center;
+      min-height:100vh;
+    }
+    .wrap{ width:min(1120px, 96vw); }
+
+    .topbar{ display:flex; gap:14px; align-items:center; justify-content:space-between; margin:12px 0; }
+    .title{ display:flex; flex-direction:column; gap:4px; }
+    .title h1{ margin:0; font-size:18px; letter-spacing:.04em; }
+    .title .hint{ color:var(--sub); font-size:13px; }
+
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+    button, select{
+      background: linear-gradient(180deg, #1a2550, #111a3a);
+      border: 1px solid rgba(255,255,255,.14);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      box-shadow: var(--shadow);
+      cursor:pointer;
+      font-weight:700;
+      font-size:13px;
+    }
+    button:hover, select:hover{ filter:brightness(1.07); }
+    button:active{ transform: translateY(1px); }
+
+    .tog{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: var(--shadow);
+      font-size:13px; color:var(--sub);
+      user-select:none;
+    }
+    .tog input{ transform: translateY(1px) scale(1.05); }
+
+    .game{ display:grid; grid-template-columns: 1.35fr .65fr; gap:14px; }
+
+    .stage{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+
+    canvas{ display:block; width:100%; height:280px; }
+
+    .hud{
+      position:absolute; inset:0; pointer-events:none;
+      padding:12px; display:flex; flex-direction:column; gap:10px;
+    }
+    .bars{ display:flex; gap:12px; justify-content:space-between; align-items:flex-start; }
+    .barbox{
+      width:48%;
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      padding:10px 12px 10px;
+      backdrop-filter: blur(6px);
+    }
+    .barlabel{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--sub); margin-bottom:7px; }
+    .hpbar{ height:11px; border-radius:999px; overflow:hidden; background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.10); }
+    .hpfill{ height:100%; width:100%; }
+    .hpfill.p{ background: linear-gradient(90deg, #1ad7ff, #4aa9ff); }
+    .hpfill.e{ background: linear-gradient(90deg, #ff3d6e, #ff7aa2); }
+
+    .mid{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .chip{
+      pointer-events:none;
+      display:inline-flex; align-items:center; gap:8px;
+      padding:7px 12px; border-radius:999px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--sub); font-size:13px; box-shadow: var(--shadow);
+      white-space:nowrap;
+    }
+    .chip b{ color:var(--text); font-weight:900; }
+
+    .promptPanel{
+      margin-top:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .promptPanel .label{
+      color:var(--sub); font-size:13px; margin-bottom:10px;
+      display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    }
+    .jp{
+      font-size:22px; font-weight:900; letter-spacing:.03em;
+      margin:0 0 8px 0; line-height:1.25; word-break:break-word;
+    }
+    .romaHint{
+      margin:0 0 10px 0;
+      font-size:13px; color: rgba(169,178,214,.92);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      opacity:.95; word-break:break-word;
+    }
+    .progress{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px 14px;
+      display:flex; flex-wrap:wrap; gap:2px;
+      font-size:14px;
+      min-height:48px;
+      word-break:break-word;
+    }
+    .progress span{ opacity:.6 }
+    .progress .ok{ opacity:1; color:var(--good); font-weight:900; }
+    .progress .cur{ opacity:1; color:var(--warn); font-weight:900; text-decoration: underline; text-underline-offset: 4px; }
+    .progress .bad{ opacity:1; color:var(--bad); font-weight:900; }
+
+    .msg{
+      margin-top:10px;
+      display:flex; justify-content:space-between; gap:12px; align-items:center;
+      color:var(--sub); font-size:13px; flex-wrap:wrap;
+    }
+    .kbd{
+      display:inline-block; padding:2px 7px; border-radius:7px;
+      border:1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:12px; color:var(--text);
+    }
+
+    .side{ display:flex; flex-direction:column; gap:14px; }
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .panel h2{ margin:0 0 10px 0; font-size:15px; letter-spacing:.03em; }
+    .statgrid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .stat{
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+      min-height:62px;
+    }
+    .stat .k{ color:var(--sub); font-size:12px; margin-bottom:6px; }
+    .stat .v{ font-size:19px; font-weight:900; }
+
+    .log{
+      max-height:300px; overflow:auto;
+      background: rgba(0,0,0,.22);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+      font-size:13px;
+      color:var(--sub);
+      line-height:1.6;
+    }
+    .log b{ color:var(--text); }
+
+    /* ★ 60秒モード結果オーバーレイ */
+    .overlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      padding:16px;
+      z-index:9999;
+    }
+    .overlay.show{ display:flex; }
+    .modal{
+      width:min(720px, 96vw);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      padding:16px;
+    }
+    .modal h3{ margin:0 0 12px 0; font-size:16px; letter-spacing:.03em; }
+    .modal .row{
+      display:grid; grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .kv{
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+    }
+    .kv .k{ color:var(--sub); font-size:12px; margin-bottom:6px; }
+    .kv .v{ font-size:18px; font-weight:900; }
+    .modal .actions{ margin-top:14px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+
+    @media (max-width: 900px){
+      .game{ grid-template-columns: 1fr; }
+      .log{ max-height:220px; }
+      .modal .row{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">
+      <h1>Typing Fighter - ひらがな → ローマ字（ヘボン式 / 訓令式 / Extended / 60秒モード）</h1>
+      <div class="hint">「60秒モード」は敵なしで60秒入力→成績表示。デフォルトはMute ON。</div>
+    </div>
+    <div class="controls">
+      <select id="difficulty">
+        <option value="easy">easy</option>
+        <option value="normal" selected>normal</option>
+        <option value="hard">hard</option>
+        <option value="extended">extended</option>
+      </select>
+
+      <select id="scheme">
+        <option value="hepburn" selected>ヘボン式</option>
+        <option value="kunrei">訓令式</option>
+      </select>
+
+      <button id="restart">Restart</button>
+      <button id="pause">Pause</button>
+
+      <!-- ★ 60秒モード -->
+      <button id="mode60">60秒モード Start</button>
+
+      <label class="tog"><input id="showRomaji" type="checkbox"> ローマ字ヒント表示</label>
+      <label class="tog"><input id="mute" type="checkbox"> Mute</label>
+    </div>
+  </div>
+
+  <div class="game">
+    <div>
+      <div class="stage">
+        <canvas id="cv" width="960" height="280"></canvas>
+
+        <div class="hud">
+          <div class="bars">
+            <div class="barbox">
+              <div class="barlabel"><span>YOU</span><span id="phpText">100 / 100</span></div>
+              <div class="hpbar"><div class="hpfill p" id="phpFill"></div></div>
+            </div>
+            <div class="barbox">
+              <div class="barlabel"><span>ENEMY</span><span id="ehpText">100 / 100</span></div>
+              <div class="hpbar"><div class="hpfill e" id="ehpFill"></div></div>
+            </div>
+          </div>
+
+          <div class="mid">
+            <div class="chip">Combo: <b id="combo">0</b> / Max: <b id="maxCombo">0</b></div>
+            <div class="chip">WPM: <b id="wpm">0</b></div>
+            <div class="chip">Accuracy: <b id="acc">100%</b></div>
+
+            <!-- ★ 60秒モード タイマー表示 -->
+            <div class="chip">60s: <b id="t60">—</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="promptPanel">
+        <div class="label">
+          <span>TYPE (ROMAJI)</span>
+          <span>
+            難易度: <b id="lvlText">—</b> /
+            方式: <b id="schemeText">—</b> /
+            状態: <b id="stateText">Ready</b>
+          </span>
+        </div>
+        <p class="jp" id="jpText"></p>
+        <p class="romaHint" id="romaHint" style="display:none;"></p>
+        <div class="progress" id="progress"></div>
+        <div class="msg">
+          <div><span class="kbd">Enter</span> 次へ（小ペナルティ） / <span class="kbd">Esc</span> 一時停止</div>
+          <div>ミス許容量: <b id="missBudgetText">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Stats</h2>
+        <div class="statgrid">
+          <div class="stat"><div class="k">Correct</div><div class="v" id="stCorrect">0</div></div>
+          <div class="stat"><div class="k">Mistakes</div><div class="v" id="stMistakes">0</div></div>
+          <div class="stat"><div class="k">Damage Dealt</div><div class="v" id="stDealt">0</div></div>
+          <div class="stat"><div class="k">Damage Taken</div><div class="v" id="stTaken">0</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Battle Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 60秒モード 結果オーバーレイ -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>60秒モード 結果</h3>
+    <div class="row">
+      <div class="kv"><div class="k">WPM</div><div class="v" id="rWpm">—</div></div>
+      <div class="kv"><div class="k">Accuracy</div><div class="v" id="rAcc">—</div></div>
+      <div class="kv"><div class="k">Typed Chars</div><div class="v" id="rTyped">—</div></div>
+      <div class="kv"><div class="k">Mistakes</div><div class="v" id="rMist">—</div></div>
+      <div class="kv"><div class="k">Completed</div><div class="v" id="rComp">—</div></div>
+      <div class="kv"><div class="k">Mode</div><div class="v" id="rMode">—</div></div>
+    </div>
+    <div class="actions">
+      <button id="closeOverlay">Close</button>
+      <button id="retry60">Retry 60s</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ============================================================
+  // 例文（ユーザー提示のJPをそのまま踏襲 + extended追加）
+  // - あなたの貼り付けコードのJPをそのまま採用
+  // - extendedは「hard + normalの難しめ語 + hardの長文」混合（量を増やす）
+  //   ※必要なら、extendedの固定リストをあなた側で指定できます
+  // ============================================================
+  const JP = {
+    easy: [
+      "たいせつ","ひと","こころ","かんしゃ","げんき","えがお","まえ",
+      "のんびり","おちゃ","すごす","やすむ",
+      "はる","なつ","あき","ふゆ",
+      "そら","くも","かぜ","あめ","ゆき","ひかり",
+      "つき","ほし","よぞら","ひる","あさ","よる",
+      "ねむる","おきる","あるく","はしる",
+      "たべる","のむ","つくる","みる","きく","はなす","かく","よむ",
+      "まなぶ","かんがえる",
+      "しあわせ","きぼう","ゆめ","みらい","ちから",
+      "つづける","がんばる","ちょうせん","せいちょう","じしん",
+      "じかん","ばしょ","みち","たび",
+      "いえ","へや","まど","つくえ",
+      "ほん","ぺん","かばん","くつ","ふく","ぼうし","かさ","かぎ",
+      "でんわ","かめら",
+      "おんがく","えいが","しゃしん","え","うた","おどる",
+      "からだ","うんどう","けんこう",
+      "ともだち","かぞく","なかま",
+      "あい","しんらい","やさしさ","おもいやり","つながり",
+      "ありがとう",
+      "はじめる","おわる","かわる","えらぶ","きめる","まもる","すすめる","みとめる"
+    ],
+    normal: [
+      "たいせつなひと",
+      "こころからかんしゃ",
+      "きょうもげんき",
+      "まえをむく",
+      "おちゃをする",
+      "のんびりすごす",
+      "かわいいはな",
+      "よぞらのつき",
+      "くもひとつ",
+      "すずしげなかぜ",
+      "なつのひぐれ",
+      "きぼうにみちたみらい",
+      "まえにすすむ",
+      "えがおがひろがる",
+      "こころがやすらぐ",
+
+      "こうりつか","さいてきか","さいこうちく","しんかんせん",
+      "じょうほうりろん","とうごうか","ぶんせきりょく",
+      "かだいかいけつ","けいぞくせい","さいげんせい",
+      "せんもんせい","たようせい","ふくざつか",
+      "じっこうりょく","けいかくせい","せきにんかん",
+      "じつようせい","せいかくせい","しんらいせい",
+      "せんりゃくてき","じゅうなんせい","はんだんりょく",
+      "かのうせい","ひつようせい","ゆうこうせい",
+      "たいおうりょく","じこかいぜん","じこかんり",
+      "ちょうきてき","みらいしこう","もくひょうせってい",
+      "けっかぶんせき","かだいにんしき","かいけつさく",
+      "いしけってい","ごうりせい","とうめいせい",
+      "りすくかんり","じょうきょうはんだん",
+      "そうごうてき","ぶんやおうだん",
+      "ひょうじゅんか","けいぞくかいぜん",
+      "ろんりてきしこう","ぶんせきてき","こうさつりょく",
+      "じこにんしき","ないせい","じぞくせい"
+    ],
+    hard: [
+      "あのくもひとつすずしげにかぜになびく",
+      "きぼうにみちたみらいをちからづよくすすむ",
+      "ものがたりのなかでであう",
+      "きゃらくたーのしんきょうをよみとる",
+      "しきおりおりのうつりかわりをかんじる",
+      "はだでかんじられるぜいたく",
+      "ふかいてつがくにおもいをはせる",
+      "こころのおくにしみわたるきぶん",
+      "ことばにあらわせないおもい",
+      "でじたるかがすすむげんだいしゃかい",
+      "しょもつにしたしむたいけん",
+
+      "りゅうこうにまどわされない",
+      "かくめいてきなはっそうをうむ",
+      "ひびのいとなみがふかみをあたえる",
+      "かこのあやまちをくりかえさない",
+      "こころをあかるくてらすまほう",
+      "じんせいのゆうぐれどきにみかえす",
+      "りふじんなげんじつにうちのめされてもきぼうをすてない",
+      "ことばをつむぐようにきずなをかさねる",
+      "ちゃくじつにまえにすすむじみさ",
+      "こんなんをのりこえたせんじんのあしあと",
+      "たましいをあらわれるようなかんどう",
+
+      "しめきりまでにさいしゅうちぇっくをおこなう",
+      "ゆうせんじゅんいをつけてたいおうする",
+      "うりあげじっせきとめひょうをかくにんする",
+      "じゅうようぽいんとをしぼってようやくする",
+      "きんきゅうでたいおうちーむをへんせいする"
+    ]
+  };
+
+  // ★ extended: hard + normal + hard(長め) をミックス（固定リストで増量）
+  JP.extended = [
+    ...JP.hard,
+    ...JP.normal,
+    "じょうほうをせいりしてろんりてきにせつめいする",
+    "ふくざつなかだいをぶんかいしてたいおうする",
+    "けいかくをたててじっこうしけっかをふりかえる",
+    "ひょうじゅんかされたてじゅんであんていしたせいかをだす",
+    "りすくをみつもりゆうせんじゅんいをちょうせいする"
+  ];
+
+  // ============================================================
+  // 難易度（extended追加）
+  // ============================================================
+  const DIFF = {
+    easy:     { enemyAtk: 2, dealtBase: 14, missBudget: 7, enemyIntervalMs: 3800 },
+    normal:   { enemyAtk: 3, dealtBase: 12, missBudget: 6, enemyIntervalMs: 3400 },
+    hard:     { enemyAtk: 4, dealtBase: 11, missBudget: 5, enemyIntervalMs: 3000 },
+    extended: { enemyAtk: 0, dealtBase: 0, missBudget: 0, enemyIntervalMs: 2600 }
+  };
+
+  // ============================================================
+  // ローマ字変換（ヘボン式 / 訓令式）
+  // ============================================================
+  const IGNORE = new Set(["、","。"," ","　","・","…","「","」","（","）","(",")","!","?","！","？","-","—","〜","~","/","\n","\t"]);
+  function stripIgnored(s){ let out=""; for(const ch of s){ if(!IGNORE.has(ch)) out+=ch; } return out; }
+  function isVowel(ch){ return ch==="a"||ch==="i"||ch==="u"||ch==="e"||ch==="o"; }
+  function firstConsonant(rom){ return rom ? rom[0] : ""; }
+
+  function getBaseMap(scheme){
+    const hepburn = (scheme === "hepburn");
+    return {
+      "あ":["a"],"い":["i"],"う":["u"],"え":["e"],"お":["o"],
+      "か":["ka"],"き":["ki"],"く":["ku"],"け":["ke"],"こ":["ko"],
+      "さ":["sa"],"し":[hepburn ? "shi" : "si"],"す":["su"],"せ":["se"],"そ":["so"],
+      "た":["ta"],"ち":[hepburn ? "chi" : "ti"],"つ":[hepburn ? "tsu" : "tu"],"て":["te"],"と":["to"],
+      "な":["na"],"に":["ni"],"ぬ":["nu"],"ね":["ne"],"の":["no"],
+      "は":["ha"],"ひ":["hi"],"ふ":[hepburn ? "fu" : "hu"],"へ":["he"],"ほ":["ho"],
+      "ま":["ma"],"み":["mi"],"む":["mu"],"め":["me"],"も":["mo"],
+      "や":["ya"],"ゆ":["yu"],"よ":["yo"],
+      "ら":["ra"],"り":["ri"],"る":["ru"],"れ":["re"],"ろ":["ro"],
+      "わ":["wa"],"を":["wo"],"ん":[hepburn ? "nn" : "nn"],
+
+      "が":["ga"],"ぎ":["gi"],"ぐ":["gu"],"げ":["ge"],"ご":["go"],
+      "ざ":["za"],"じ":[hepburn ? "ji" : "zi"],"ず":["zu"],"ぜ":["ze"],"ぞ":["zo"],
+      "だ":["da"],"ぢ":[hepburn ? "ji" : "di"],"づ":[hepburn ? "zu" : "du"],"で":["de"],"ど":["do"],
+      "ば":["ba"],"び":["bi"],"ぶ":["bu"],"べ":["be"],"ぼ":["bo"],
+      "ぱ":["pa"],"ぴ":["pi"],"ぷ":["pu"],"ぺ":["pe"],"ぽ":["po"],
+
+      "ぁ":["a"],"ぃ":["i"],"ぅ":["u"],"ぇ":["e"],"ぉ":["o"],
+      "ゎ":["wa"],
+      "ゔ":["vu"],
+      "ー":[""]
+    };
+  }
+
+  function getDigraphMap(scheme){
+    const hepburn = (scheme === "hepburn");
+    return {
+      "きゃ":["kya"],"きゅ":["kyu"],"きょ":["kyo"],
+      "ぎゃ":["gya"],"ぎゅ":["gyu"],"ぎょ":["gyo"],
+
+      "しゃ":[hepburn ? "sha" : "sya"],"しゅ":[hepburn ? "shu" : "syu"],"しょ":[hepburn ? "sho" : "syo"],
+      "ちゃ":[hepburn ? "cha" : "tya"],"ちゅ":[hepburn ? "chu" : "tyu"],"ちょ":[hepburn ? "cho" : "tyo"],
+      "じゃ":[hepburn ? "ja"  : "zya"],"じゅ":[hepburn ? "ju"  : "zyu"],"じょ":[hepburn ? "jo"  : "zyo"],
+
+      "にゃ":["nya"],"にゅ":["nyu"],"にょ":["nyo"],
+      "ひゃ":["hya"],"ひゅ":["hyu"],"ひょ":["hyo"],
+      "びゃ":["bya"],"びゅ":["byu"],"びょ":["byo"],
+      "ぴゃ":["pya"],"ぴゅ":["pyu"],"ぴょ":["pyo"],
+      "みゃ":["mya"],"みゅ":["myu"],"みょ":["myo"],
+      "りゃ":["rya"],"りゅ":["ryu"],"りょ":["ryo"]
+    };
+  }
+
+  function hiraToRomajiCandidates(hiraRaw, scheme){
+    const BASE = getBaseMap(scheme);
+    const DIGRAPH = getDigraphMap(scheme);
+    const hira = stripIgnored(hiraRaw);
+
+    let i=0, chunks=[];
+    while(i<hira.length){
+      const two=hira.slice(i,i+2), one=hira[i];
+
+      if(DIGRAPH[two]){
+        chunks.push(Array.isArray(DIGRAPH[two]) ? DIGRAPH[two] : [DIGRAPH[two]]);
+        i+=2; continue;
+      }
+
+      if(one==="っ"){
+        const nextTwo=hira.slice(i+1,i+3), nextOne=hira[i+1];
+        let nextOpts=null;
+
+        if(DIGRAPH[nextTwo]) nextOpts = Array.isArray(DIGRAPH[nextTwo]) ? DIGRAPH[nextTwo] : [DIGRAPH[nextTwo]];
+        else if(BASE[nextOne]) nextOpts = BASE[nextOne];
+
+        const cs=[];
+        if(nextOpts){
+          for(const rom of nextOpts){
+            const c=firstConsonant(rom);
+            if(c) cs.push(c);
+          }
+        }
+        chunks.push(cs.length ? Array.from(new Set(cs)) : [""]);
+        i+=1; continue;
+      }
+
+      if(one==="ん"){
+        const nextTwo=hira.slice(i+1,i+3), nextOne=hira[i+1];
+        let nextOpts=null;
+
+        if(DIGRAPH[nextTwo]) nextOpts = Array.isArray(DIGRAPH[nextTwo]) ? DIGRAPH[nextTwo] : [DIGRAPH[nextTwo]];
+        else if(BASE[nextOne]) nextOpts = BASE[nextOne];
+
+        let ambiguous=false;
+        if(nextOpts){
+          ambiguous = nextOpts.some(r => r && (isVowel(r[0]) || r[0]==="y"));
+        }
+        chunks.push(ambiguous ? ["n'","nn","n"] : ["n"]);
+        i+=1; continue;
+      }
+
+      if(BASE[one]) chunks.push(BASE[one]);
+      else chunks.push([""]);
+      i+=1;
+    }
+
+    let candidates=[""];
+    const LIMIT=30;
+    for(const opts of chunks){
+      const next=[];
+      for(const c of candidates){
+        for(const o of opts){
+          next.push(c+o);
+          if(next.length>=LIMIT) break;
+        }
+        if(next.length>=LIMIT) break;
+      }
+      candidates=next;
+    }
+
+    candidates = Array.from(new Set(candidates)).filter(s=>s.length>0);
+
+    const extra=[];
+    for(const s of candidates){ if(s.includes("n'")) extra.push(s.replaceAll("n'","n")); }
+    for(const e of extra) candidates.push(e);
+
+    return Array.from(new Set(candidates));
+  }
+
+  // ============================================================
+  // DOM
+  // ============================================================
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+
+  const jpText = document.getElementById("jpText");
+  const romaHintEl = document.getElementById("romaHint");
+  const progressEl = document.getElementById("progress");
+  const stateText = document.getElementById("stateText");
+  const lvlText = document.getElementById("lvlText");
+  const schemeText = document.getElementById("schemeText");
+
+  const phpFill = document.getElementById("phpFill");
+  const ehpFill = document.getElementById("ehpFill");
+  const phpTextEl = document.getElementById("phpText");
+  const ehpTextEl = document.getElementById("ehpText");
+
+  const comboEl = document.getElementById("combo");
+  const maxComboEl = document.getElementById("maxCombo");
+  const wpmEl = document.getElementById("wpm");
+  const accEl = document.getElementById("acc");
+
+  const stCorrect = document.getElementById("stCorrect");
+  const stMistakes = document.getElementById("stMistakes");
+  const stDealt = document.getElementById("stDealt");
+  const stTaken = document.getElementById("stTaken");
+  const logEl = document.getElementById("log");
+
+  const restartBtn = document.getElementById("restart");
+  const pauseBtn = document.getElementById("pause");
+  const difficultySel = document.getElementById("difficulty");
+  const schemeSel = document.getElementById("scheme");
+  const mode60Btn = document.getElementById("mode60");
+
+  const muteChk = document.getElementById("mute");
+  const showRomajiChk = document.getElementById("showRomaji");
+  const missBudgetText = document.getElementById("missBudgetText");
+
+  const t60El = document.getElementById("t60");
+
+  const overlay = document.getElementById("overlay");
+  const closeOverlayBtn = document.getElementById("closeOverlay");
+  const retry60Btn = document.getElementById("retry60");
+  const rWpm = document.getElementById("rWpm");
+  const rAcc = document.getElementById("rAcc");
+  const rTyped = document.getElementById("rTyped");
+  const rMist = document.getElementById("rMist");
+  const rComp = document.getElementById("rComp");
+  const rMode = document.getElementById("rMode");
+
+  // ★デフォルトミュートON
+  muteChk.checked = true;
+
+  // ============================================================
+  // Audio
+  // ============================================================
+  let audioCtx = null;
+  function beep(freq=440, dur=0.06, type="sine", gain=0.05){
+    if (muteChk.checked) return;
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = gain;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + dur);
+    }catch(e){}
+  }
+
+  // ============================================================
+  // Game State
+  // ============================================================
+  const MAX_HP = 100;
+  let difficulty = difficultySel.value;
+  let scheme = schemeSel.value; // hepburn / kunrei
+
+  let enemyTimer = 0;
+  let enemyNext = 999999;
+
+  let player = { hp: MAX_HP, x: 300, y: 170, shake:0, flash:0 };
+  let enemy  = { hp: MAX_HP, x: 660, y: 170, shake:0, flash:0 };
+
+  let currentJP = "";
+  let candidates = [];
+  let canonical = "";
+  let typed = "";
+  let mistakesThisWord = 0;
+
+  let combo = 0, maxCombo = 0;
+
+  let totalCorrect = 0;     // 完了した問題数
+  let totalMistakes = 0;
+  let damageDealt = 0;
+  let damageTaken = 0;
+
+  let startTime = performance.now();
+  let totalTypedChars = 0;
+  let totalTargetChars = 0;
+
+  let paused = false;
+  let gameOver = false;
+
+  // ★ 60秒モード
+  let mode60 = false;
+  let t60Start = 0;
+  let t60End = 0;
+
+  const floats = [];
+  function floatText(x,y,text,color){ floats.push({x,y,vy:-0.5,text,life:55,color}); }
+  function log(line){
+    const p = document.createElement("div");
+    p.innerHTML = line;
+    logEl.prepend(p);
+    while(logEl.childNodes.length > 80) logEl.removeChild(logEl.lastChild);
+  }
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+  function updateBars(){
+    phpTextEl.textContent = `${player.hp} / ${MAX_HP}`;
+    ehpTextEl.textContent = `${enemy.hp} / ${MAX_HP}`;
+    phpFill.style.width = `${(player.hp/MAX_HP)*100}%`;
+    ehpFill.style.width = `${(enemy.hp/MAX_HP)*100}%`;
+  }
+
+  function calcWpm(now){
+    const minutes = (now - startTime) / 60000;
+    return minutes > 0 ? Math.round((totalTypedChars/5) / minutes) : 0;
+  }
+  function calcAcc(){
+    return totalTargetChars > 0
+      ? Math.round((Math.max(0, totalTargetChars - totalMistakes) / totalTargetChars) * 100)
+      : 100;
+  }
+
+  function updateStats(){
+    comboEl.textContent = combo;
+    maxComboEl.textContent = maxCombo;
+
+    stCorrect.textContent = totalCorrect;
+    stMistakes.textContent = totalMistakes;
+    stDealt.textContent = damageDealt;
+    stTaken.textContent = damageTaken;
+
+    const now = performance.now();
+    wpmEl.textContent = calcWpm(now);
+    accEl.textContent = `${calcAcc()}%`;
+
+    // 60秒表示
+    if(!mode60){
+      t60El.textContent = "—";
+    }else{
+      const leftMs = Math.max(0, t60End - now);
+      t60El.textContent = `${Math.ceil(leftMs/1000)}s`;
+    }
+  }
+
+  function isValidPrefix(s){ return candidates.some(c => c.startsWith(s)); }
+
+  function renderProgress(){
+    progressEl.innerHTML = "";
+    const target = canonical;
+    const valid = isValidPrefix(typed);
+
+    for(let i=0;i<target.length;i++){
+      const span = document.createElement("span");
+      const ch = target[i];
+
+      if(i < typed.length){
+        span.className = valid ? "ok" : "bad";
+        span.style.opacity = valid && typed[i] !== ch ? "0.85" : "1";
+        span.textContent = ch;
+      }else if(i === typed.length){
+        span.className = "cur";
+        span.textContent = ch;
+      }else{
+        span.textContent = ch;
+      }
+      progressEl.appendChild(span);
+    }
+  }
+
+  function setDifficulty(val){
+    difficulty = val;
+    enemyNext = DIFF[difficulty]?.enemyIntervalMs ?? 3400;
+    missBudgetText.textContent = DIFF[difficulty]?.missBudget ?? 6;
+    lvlText.textContent = difficulty;
+  }
+
+  function setScheme(val){
+    scheme = val;
+    schemeText.textContent = (scheme === "hepburn") ? "ヘボン式" : "訓令式";
+
+    if(currentJP){
+      candidates = hiraToRomajiCandidates(currentJP, scheme);
+      canonical = candidates[0] || "";
+      typed = "";
+      mistakesThisWord = 0;
+      setRomajiHint();
+      renderProgress();
+    }
+    log(`方式切替: <b>${schemeText.textContent}</b>`);
+  }
+
+  function setRomajiHint(){
+    if(showRomajiChk.checked){
+      romaHintEl.style.display = "block";
+      romaHintEl.textContent = `例: ${canonical}`;
+    }else{
+      romaHintEl.style.display = "none";
+    }
+  }
+
+  function pickNext(){
+    const pool = JP[difficulty] || JP.normal;
+    currentJP = pool[(Math.random()*pool.length)|0];
+
+    candidates = hiraToRomajiCandidates(currentJP, scheme);
+    canonical = candidates[0] || "";
+
+    typed = "";
+    mistakesThisWord = 0;
+
+    jpText.textContent = currentJP;
+    setRomajiHint();
+
+    stateText.textContent = mode60 ? "60s" : "Fight";
+
+    totalTargetChars += canonical.length;
+    renderProgress();
+    updateStats();
+  }
+
+  function resetAll(){
+    gameOver = false;
+    paused = false;
+
+    player.hp = MAX_HP; enemy.hp = MAX_HP;
+    combo = 0; maxCombo = 0;
+
+    totalCorrect = 0; totalMistakes = 0;
+    damageDealt = 0; damageTaken = 0;
+
+    totalTypedChars = 0;
+    totalTargetChars = 0;
+    startTime = performance.now();
+
+    floats.length = 0;
+    logEl.innerHTML = "";
+
+    enemyTimer = 0;
+    enemyNext = DIFF[difficulty].enemyIntervalMs;
+
+    // 60秒モード状態は維持（resetで外さない）
+    updateBars();
+    updateStats();
+
+    pickNext();
+    log(`開始: 難易度 <b>${difficulty}</b> / 方式 <b>${schemeText.textContent}</b> / ${mode60 ? "60秒モード" : "バトル"} / デフォルトMute`);
+  }
+
+  function playerAttack(mult=1){
+    const base = DIFF[difficulty].dealtBase;
+    const dmg = Math.round(base * mult);
+    enemy.hp = clamp(enemy.hp - dmg, 0, MAX_HP);
+    enemy.shake = 10; enemy.flash = 8;
+    damageDealt += dmg;
+
+    updateBars(); updateStats();
+    floatText(enemy.x, enemy.y - 65, `-${dmg}`, "good");
+    beep(680, 0.05, "square", 0.04);
+    log(`YOU: 攻撃 <b>${dmg}</b>`);
+
+    if(enemy.hp <= 0){
+      stateText.textContent = "YOU WIN";
+      log(`<b>勝利</b>`);
+      gameOver = true;
+    }
+  }
+
+  function enemyAttack(){
+    if(gameOver) return;
+    const dmg = DIFF[difficulty].enemyAtk;
+    player.hp = clamp(player.hp - dmg, 0, MAX_HP);
+    player.shake = 10; player.flash = 8;
+    damageTaken += dmg;
+
+    updateBars(); updateStats();
+    floatText(player.x, player.y - 65, `-${dmg}`, "bad");
+    beep(180, 0.08, "sawtooth", 0.05);
+    log(`ENEMY: 反撃 <b>${dmg}</b>`);
+
+    if(player.hp <= 0){
+      stateText.textContent = "YOU LOSE";
+      log(`<b>敗北</b>`);
+      gameOver = true;
+    }
+  }
+
+  function onCorrect(){
+    totalCorrect++;
+
+    if(!mode60){
+      const mult = 1 + Math.min(2.0, combo * 0.10);
+      playerAttack(mult);
+      combo++;
+      maxCombo = Math.max(maxCombo, combo);
+    }else{
+      // 60秒モードでは攻撃演出だけ軽く
+      combo++;
+      maxCombo = Math.max(maxCombo, combo);
+      floatText(cv.width/2, 80, "OK!", "good");
+      beep(740, 0.04, "square", 0.03);
+    }
+
+    updateStats();
+    pickNext();
+  }
+
+  function onMistake(){
+    totalMistakes++;
+    combo = 0;
+    updateStats();
+    floatText(cv.width/2, 95, "MISS!", "bad");
+    beep(260, 0.06, "triangle", 0.05);
+
+    mistakesThisWord++;
+
+    // ★60秒モードではGUARD BREAKや敵攻撃は無効
+    if(mode60) return;
+
+    if(mistakesThisWord > DIFF[difficulty].missBudget){
+      floatText(cv.width/2, 118, "GUARD BREAK", "warn");
+      log(`判定: <b>GUARD BREAK</b>`);
+      enemyAttack();
+      mistakesThisWord = 0;
+    }
+  }
+
+  function finish60Mode(){
+    const now = performance.now();
+    mode60 = false;
+    t60El.textContent = "—";
+    stateText.textContent = "Result";
+    mode60Btn.textContent = "60秒モード Start";
+
+    // オーバーレイに結果表示
+    const wpm = calcWpm(now);
+    const acc = calcAcc();
+
+    rWpm.textContent = `${wpm}`;
+    rAcc.textContent = `${acc}%`;
+    rTyped.textContent = `${totalTypedChars}`;
+    rMist.textContent = `${totalMistakes}`;
+    rComp.textContent = `${totalCorrect}`;
+    rMode.textContent = `${difficulty} / ${(scheme==="hepburn")?"ヘボン式":"訓令式"}`;
+
+    overlay.classList.add("show");
+    log(`<b>60秒モード終了</b>: WPM=${wpm}, Acc=${acc}% , Completed=${totalCorrect}`);
+
+    // バトルに戻す（敵タイマー復帰）
+    enemyTimer = 0;
+    enemyNext = DIFF[difficulty].enemyIntervalMs;
+  }
+
+  function start60Mode(){
+    // 60秒モード開始時に、バトル状態を成績用にリセット
+    overlay.classList.remove("show");
+
+    mode60 = true;
+    gameOver = false;
+    paused = false;
+
+    // 敵攻撃停止
+    enemyTimer = 0;
+    enemyNext = 999999;
+
+    player.hp = MAX_HP;
+    enemy.hp  = MAX_HP;
+
+    combo = 0; maxCombo = 0;
+    damageDealt = 0; damageTaken = 0;
+
+    totalCorrect = 0;
+    totalMistakes = 0;
+    totalTypedChars = 0;
+    totalTargetChars = 0;
+
+    startTime = performance.now();
+    t60Start = startTime;
+    t60End = t60Start + 60000;
+
+    mode60Btn.textContent = "60秒モード Stop";
+    stateText.textContent = "60s";
+    log(`60秒モード開始: <b>${difficulty}</b> / <b>${schemeText.textContent}</b>`);
+
+    updateBars();
+    updateStats();
+    pickNext();
+  }
+
+  function toggle60(){
+    if(mode60){
+      // 途中停止＝結果表示
+      finish60Mode();
+    }else{
+      start60Mode();
+    }
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if(e.key === "Escape"){ togglePause(); return; }
+    if(paused) return;
+
+    // 60秒モード中に時間切れなら入力を無視して終了
+    if(mode60){
+      const now = performance.now();
+      if(now >= t60End){
+        finish60Mode();
+        return;
+      }
+    }
+
+    if(gameOver){
+      if(e.key === "Enter") resetAll();
+      return;
+    }
+
+    if(e.key === "Enter"){
+      log(`YOU: スキップ（小ペナルティ）`);
+      combo = 0;
+      updateStats();
+
+      if(!mode60){
+        enemyAttack();
+      }
+      pickNext();
+      return;
+    }
+
+    if(e.key.length !== 1) return;
+    const ch = e.key.toLowerCase();
+    if(!(/[a-z']/).test(ch)) return;
+
+    totalTypedChars++;
+    const next = typed + ch;
+
+    if(isValidPrefix(next)){
+      typed = next;
+      beep(520, 0.02, "sine", 0.03);
+      renderProgress();
+
+      if(candidates.includes(typed)){
+        floatText(cv.width/2, 80, "HIT!", "good");
+        beep(740, 0.06, "square", 0.04);
+        onCorrect();
+      }
+    }else{
+      onMistake();
+      renderProgress();
+    }
+  });
+
+  function togglePause(){
+    if(gameOver) return;
+
+    // 60秒モード中も一時停止可能（ただし時間は止めない仕様）
+    paused = !paused;
+    stateText.textContent = paused ? "Paused" : (mode60 ? "60s" : "Fight");
+    pauseBtn.textContent = paused ? "Resume" : "Pause";
+  }
+
+  pauseBtn.addEventListener("click", () => togglePause());
+  restartBtn.addEventListener("click", () => resetAll());
+  difficultySel.addEventListener("change", () => {
+    setDifficulty(difficultySel.value);
+    // 60秒モード中なら即反映してリスタート（成績の公平性）
+    resetAll();
+  });
+  schemeSel.addEventListener("change", () => { setScheme(schemeSel.value); });
+  showRomajiChk.addEventListener("change", () => setRomajiHint());
+  mode60Btn.addEventListener("click", () => toggle60());
+
+  closeOverlayBtn.addEventListener("click", () => overlay.classList.remove("show"));
+  retry60Btn.addEventListener("click", () => start60Mode());
+  overlay.addEventListener("click", (e) => { if(e.target === overlay) overlay.classList.remove("show"); });
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawFighter(f, side){
+    const baseX = f.x + (f.shake ? (Math.random()*6-3) : 0);
+    const baseY = f.y + (f.shake ? (Math.random()*6-3) : 0);
+
+    ctx.save();
+    ctx.translate(baseX, baseY);
+
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.ellipse(0, 48, 46, 10, 0, 0, Math.PI*2);
+    ctx.fillStyle = "#000";
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if(f.flash > 0){
+      ctx.globalAlpha = 0.22;
+      ctx.beginPath();
+      ctx.arc(0, 0, 58, 0, Math.PI*2);
+      ctx.fillStyle = side === "p" ? "#36c3ff" : "#ff3d6e";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    ctx.strokeStyle = "rgba(255,255,255,.22)";
+    ctx.lineWidth = 2;
+    roundRect(-24, -20, 48, 54, 10);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,.14)";
+    ctx.strokeStyle = "rgba(255,255,255,.26)";
+    roundRect(-16, -54, 32, 28, 9);
+    ctx.fill(); ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255,255,255,.28)";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-20, -4); ctx.lineTo(-44, 10);
+    ctx.moveTo( 20, -4); ctx.lineTo( 44, 10);
+    ctx.stroke();
+
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-10, 26); ctx.lineTo(-22, 56);
+    ctx.moveTo( 10, 26); ctx.lineTo( 22, 56);
+    ctx.stroke();
+
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,.70)";
+    ctx.fillText(side === "p" ? "YOU" : "ENEMY", 0, -66);
+
+    ctx.restore();
+  }
+
+  function drawStage(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+
+    const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+    g.addColorStop(0, "rgba(255,255,255,.04)");
+    g.addColorStop(1, "rgba(0,0,0,.35)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,cv.width,cv.height);
+
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.strokeStyle = "#ffffff";
+    for(let y=50;y<cv.height;y+=36){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cv.width,y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // 60秒モード中は敵を薄くして「練習感」を出す
+    if(mode60){
+      ctx.save(); ctx.globalAlpha = 0.35;
+      drawFighter(enemy, "e");
+      ctx.restore();
+      drawFighter(player, "p");
+    }else{
+      drawFighter(player, "p");
+      drawFighter(enemy, "e");
+    }
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.font = "900 16px system-ui, sans-serif";
+    for(const f of floats){
+      ctx.globalAlpha = clamp(f.life/55, 0, 1);
+      ctx.fillStyle = (f.color==="good") ? "rgba(39,212,167,1)"
+                    : (f.color==="warn") ? "rgba(255,209,102,1)"
+                    : "rgba(255,90,122,1)";
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.restore();
+
+    if(paused){
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.fillStyle = "rgba(255,255,255,.9)";
+      ctx.font = "900 22px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PAUSED", cv.width/2, cv.height/2);
+      ctx.restore();
+    }
+
+    if(gameOver){
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.42)";
+      ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.fillStyle = "rgba(255,255,255,.95)";
+      ctx.font = "900 28px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(stateText.textContent, cv.width/2, cv.height/2);
+      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,.75)";
+      ctx.fillText("Enter で再スタート", cv.width/2, cv.height/2 + 18);
+      ctx.restore();
+    }
+  }
+
+  let last = performance.now();
+  function tick(now){
+    const dt = now - last;
+    last = now;
+
+    // ★60秒モード時間切れ判定（tickでも確実に止める）
+    if(mode60 && !paused && now >= t60End){
+      finish60Mode();
+    }
+
+    if(!paused && !gameOver && !mode60){
+      enemyTimer += dt;
+      if(enemyTimer >= enemyNext){
+        enemyTimer = 0;
+        enemyNext = DIFF[difficulty].enemyIntervalMs + (Math.random()*520 - 260);
+        log(`ENEMY: 牽制`);
+        enemyAttack();
+      }
+    }
+
+    player.shake = Math.max(0, player.shake - 1);
+    enemy.shake  = Math.max(0, enemy.shake - 1);
+    player.flash = Math.max(0, player.flash - 1);
+    enemy.flash  = Math.max(0, enemy.flash - 1);
+
+    for(const f of floats){ f.y += f.vy; f.life -= 1; }
+    for(let i=floats.length-1;i>=0;i--){ if(floats[i].life <= 0) floats.splice(i,1); }
+
+    updateStats();
+    drawStage();
+    requestAnimationFrame(tick);
+  }
+
+  // ============================================================
+  // Start
+  // ============================================================
+  setDifficulty(difficultySel.value);
+  setScheme(schemeSel.value);
+  // 初期はバトル
+  resetAll();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
+
